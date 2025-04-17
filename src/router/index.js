@@ -28,16 +28,18 @@ const VueRouter = createRouter({
   ]
 })
 
-// VueRouter.beforeEach((to, from, next) => {
-//   if (to.name == "login" || to.name == 'recruit') {
-//     next();
-//   }
-//   else if (loginFlag != "isLogin") {
-//     next({
-//       path: '/login'
-//     })
-//   }
-//   next();
-// })
+VueRouter.beforeEach((to, from, next) => {
+  let loginFlag = sessionStorage.getItem("isLogin");
+  loginFlag = "success";
+  if (to.path == '/main/home') {
+    next();
+  }
+  else if (loginFlag != "success") {
+    next({
+      path: '/main/home'
+    })
+  }
+  next();
+})
 
 export default VueRouter;

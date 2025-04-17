@@ -19,9 +19,11 @@
 </template>
 <script setup>
 import service from "../../request/http.js";
-import { ref } from 'vue'
-import { reactive } from 'vue'
+import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const formData = reactive({
     username: '',
     password: ''
@@ -33,11 +35,18 @@ const submitClick = () => {
     service.post("/api/auth/login", {
         username: username,
         password: password
-
     }).then((response) => {
-        sessionStorage.setItem("isLogin", 1)
-        sessionStorage.setItem("username", response.data.username);
+        if (response.code == 200 && response.data.code == 200) {
+            sessionStorage.setItem("isLogin", "success");
+            sessionStorage.setItem("username", response.data.username);
+            router.push({ path: '/main/chat' });
+        }
+        ElMessage({
+            message: "登录失败，请稍后重试。",
+            type: 'error',
+        })
         doCloseWindow();
+        router.push({ path: '/main/chat' });
     });
 }
 
