@@ -19,9 +19,9 @@
 </template>
 <script setup>
 import service from "../../request/http.js";
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { reactive } from 'vue';
+import { ElMessage } from 'element-plus';
+import { useRouter } from 'vue-router';
 
 const router = useRouter()
 const formData = reactive({
@@ -36,17 +36,22 @@ const submitClick = () => {
         username: username,
         password: password
     }).then((response) => {
-        if (response.code == 200 && response.data.code == 200) {
+        console.log(response.data);
+        if (response.status == 200 && response.data.code == 200) {
+            let userInfo = response.data.data;
             sessionStorage.setItem("isLogin", "success");
-            sessionStorage.setItem("username", response.data.username);
-            router.push({ path: '/main/chat' });
+            sessionStorage.setItem("username", userInfo.username);
+            ElMessage({
+                message: "登录成功。",
+                type: 'success',
+            })
+        } else {
+            ElMessage({
+                message: "登录失败，请稍后重试。",
+                type: 'error',
+            })
         }
-        ElMessage({
-            message: "登录失败，请稍后重试。",
-            type: 'error',
-        })
         doCloseWindow();
-        router.push({ path: '/main/chat' });
     });
 }
 

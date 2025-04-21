@@ -6,7 +6,16 @@
                 <el-input v-model="friend_name" placeholder="搜索好友..." type="text"></el-input>
             </div>
             <div class="friends-list" id="friendsList">
-                <!-- 好友列表项将通过JavaScript动态生成 -->
+                <el-table :data="tableData" style="width: 100%">
+                    <el-table-column prop="username" label="好友列表" @click="chooseUser(username)" />
+                    <el-table-column align="right">
+                        <template #default="scope">
+                            <el-button size="small" type="danger" @click="handleDelete(scope.$index, scope.row)">
+                                删除
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
             </div>
         </div>
 
@@ -18,7 +27,8 @@
                     <div class="chat-user-name" id="chatTitle">选择一个好友开始聊天</div>
                 </div>
                 <div class="chat-actions">
-                    <button class="chat-action-button" id="addFriendBtn"><i class="fas fa-user-plus"></i></button>
+                    <button class="chat-action-button" id="addFriendBtn" @click="addFriend()"><i
+                            class="fas fa-user-plus"></i></button>
                     <button class="chat-action-button" id="toggleAIBtn"><i class="fas fa-robot"></i></button>
                 </div>
             </div>
@@ -44,7 +54,7 @@
         <!-- AI助手区域 -->
         <div class="ai-assistant-container" id="aiAssistantPanel">
             <div class="ai-assistant-header">
-                <h3>智能问答</h3>
+                智能问答
             </div>
             <div class="ai-assistant-chat" id="aiResponseContainer">
                 <!-- AI助手的聊天记录 -->
@@ -77,19 +87,67 @@
     </div>
 </template>
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import service from "../../request/http.js";
+let tableData = ref([]);
+const username = sessionStorage.getItem("username");
 onMounted(() => {
-    let isLogin = sessionStorage.getItem("isLogin");
-    if (isLogin == "success") {
-
-    }
+    service.get("/api/auth/friends/list?username=" + username).then((response) => {
+        console.log(response.data);
+        if (response.status == 200 && response.data.code == 200) {
+            let dataList = response.data.data.friends;
+            let friends = new Array();
+            for (let username of dataList) {
+                let user = {
+                    username: username
+                };
+                console.log(user);
+                friends.push(user);
+            }
+            console.log(friends);
+            tableData.value = friends;
+        } else {
+            ElMessage({
+                message: "系统异常，请稍后重试。",
+                type: 'error',
+            })
+        }
+    });
 })
+
+function chooseUser(username) {
+    console.log(username);
+}
+function addFriend() {
+
+}
+function handleDelete(index, row) {
+    let frendUsername = row.username;
+    let userinfo = {
+        username: username,
+        friendUsername: frendUsername
+    }
+    service.delete("/api/auth/friends/remove", { data: userinfo }).then((response) => {
+        console.log(response.data);
+        if (response.status == 200 && response.data.code == 200) {
+            let friends = tableData.value;
+            friends.splice(index);
+            tableData.value = friends;
+        } else {
+            ElMessage({
+                message: "系统异常，请稍后重试。",
+                type: 'error',
+            })
+        }
+    });
+}
 </script>
 <style>
 /* 聊天界面布局 */
 .chat-container {
     display: flex;
-    height: calc(100vh - 80px);
+    height: 100%;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     border-radius: 8px;
     /* overflow: hidden; */
@@ -196,11 +254,12 @@ onMounted(() => {
 
 /* 聊天头部 */
 .chat-header {
-    padding: 15px;
+    height: 4rem;
     border-bottom: 1px solid #eaeaea;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding-left: 1rem;
 }
 
 .chat-user-info {
@@ -227,6 +286,7 @@ onMounted(() => {
 
 .chat-actions {
     display: flex;
+    padding-right: 1rem;
 }
 
 .chat-action-button {
@@ -330,12 +390,12 @@ onMounted(() => {
 
 .chat-input {
     flex: 1;
-    padding: 12px 15px;
+    padding: 1rem 1rem;
     border: 1px solid #ddd;
     border-radius: 24px;
     font-size: 14px;
     resize: none;
-    height: 48px;
+    height: 1rem;
     margin-right: 10px;
 }
 
@@ -405,11 +465,13 @@ onMounted(() => {
 }
 
 .ai-assistant-header {
-    padding: 15px;
     border-bottom: 1px solid #eaeaea;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 1.5rem;
     text-align: center;
     color: #3498db;
+    height: 4rem;
+    line-height: 4rem;
 }
 
 .ai-assistant-chat {

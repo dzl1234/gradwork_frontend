@@ -55,6 +55,9 @@ const service = axios.create({
         post: {
             'Content-Type': 'application/json;charset=utf-8',
             'token': localStorage.getItem("token")
+        },
+        delete: {
+            'Content-Type': 'application/json;charset=utf-8'
         }
     },
 

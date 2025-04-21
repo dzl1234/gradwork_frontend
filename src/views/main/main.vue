@@ -2,9 +2,14 @@
     <div class="main_box">
         <div class="main_head">
             <div class="main_head_title">多语言聊天</div>
-            <div class="user_info">
+            <div class="login_table" v-show="loginIsVisible">
                 <div class="login_btn" @click="clickLogin()">登录</div>
                 <div class="register_btn" @click="clickRegister()"> 注册</div>
+            </div>
+            <div class="user_info" v-show="userIsVisible">
+                <div><el-avatar class="user_filled" :icon="UserFilled" /></div>
+                <div class="user_name">{{ useName }}</div>
+                <div class="logout_btn" @click="clickLogout()">登出</div>
             </div>
         </div>
         <div class="main_body">
@@ -22,17 +27,49 @@
 import { ref } from 'vue'
 import { useRouter } from "vue-router";
 import login from "../login/login.vue";
+import { UserFilled } from '@element-plus/icons-vue';
+import { onMounted } from 'vue';
 const router = useRouter();
 const isVisible = ref(false);
+const loginIsVisible = ref(true);
+const userIsVisible = ref(false);
+
+let useName = "";
+
 function clickLogin() {
     isVisible.value = !isVisible.value;
 }
 
 const onDoClose = (doClose) => {
+    let isLogin = sessionStorage.getItem("isLogin");
+    if (isLogin == "success") {
+        loginIsVisible.value = false;
+        userIsVisible.value = true;
+        let userName = sessionStorage.getItem("username");
+        useName = userName;
+    }
     if (doClose == 1) {
         isVisible.value = false;
     }
+    router.push("/main/chat");
 }
+
+function clickLogout() {
+    sessionStorage.clear();
+    loginIsVisible.value = true;
+    userIsVisible.value = false;
+    router.push("/main/home");
+}
+
+onMounted(() => {
+    let isLogin = sessionStorage.getItem("isLogin");
+    if (isLogin == "success") {
+        loginIsVisible.value = false;
+        userIsVisible.value = true;
+        let userName = sessionStorage.getItem("username");
+        useName = userName;
+    }
+})
 </script>
 
 <style>
@@ -100,7 +137,8 @@ const onDoClose = (doClose) => {
     text-align: center;
 }
 
-.user_info {
+.user_info,
+.login_table {
     color: white;
     padding-right: 2rem;
     display: flex;
@@ -110,11 +148,23 @@ const onDoClose = (doClose) => {
 }
 
 .login_btn,
-.register_btn {
+.register_btn,
+.logout_btn {
     color: white;
     padding-right: 1rem;
     font-size: 1.1rem;
     font-weight: 500;
     cursor: pointer;
+}
+
+.user_filled {
+    height: 2rem;
+    width: 2rem;
+}
+
+.user_name {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    font-size: 1.3rem;
 }
 </style>
