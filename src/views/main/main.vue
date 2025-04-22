@@ -68,6 +68,8 @@ onMounted(() => {
         userIsVisible.value = true;
         let userName = sessionStorage.getItem("username");
         useName = userName;
+    } else {
+        router.push("/main/home");
     }
 })
 </script>

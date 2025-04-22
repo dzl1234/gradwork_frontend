@@ -6,8 +6,8 @@
                 <el-input v-model="friend_name" placeholder="搜索好友..." type="text"></el-input>
             </div>
             <div class="friends-list" id="friendsList">
-                <el-table :data="tableData" style="width: 100%">
-                    <el-table-column prop="username" label="好友列表" @click="chooseUser(username)" />
+                <el-table :data="tableData" style="width: 100%" @row-click="handleRowClick">
+                    <el-table-column prop="username" label="好友列表" />
                     <el-table-column align="right">
                         <template #default="scope">
                             <el-button size="small" type="danger" @click="handleDelete(scope.$index, scope.row)">
@@ -24,7 +24,7 @@
             <div class="chat-header">
                 <div class="chat-user-info">
                     <div class="chat-user-avatar">用户</div>
-                    <div class="chat-user-name" id="chatTitle">选择一个好友开始聊天</div>
+                    <div class="chat-user-name" id="chatTitle">{{ chooseUserNamebar }}</div>
                 </div>
                 <div class="chat-actions">
                     <button class="chat-action-button" id="addFriendBtn" @click="addFriend()"><i
@@ -33,6 +33,10 @@
                 </div>
             </div>
             <div class="chat-messages" id="chatMessages">
+                <div class="message" v-for="(message, index) in messages" :key="index"
+                    :class="message.align === 'left' ? 'message-left' : 'message-right'">
+                    {{ message.text }}
+                </div>
             </div>
             <div class="chat-input-container">
                 <div class="chat-tools">
@@ -87,14 +91,14 @@
     </div>
 </template>
 <script setup>
-import { onMounted, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { onMounted, ref, onUnmounted } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import service from "../../request/http.js";
 let tableData = ref([]);
 const username = sessionStorage.getItem("username");
+let chooseUserNamebar = "选择一个好友开始聊天";
 onMounted(() => {
     service.get("/api/auth/friends/list?username=" + username).then((response) => {
-        console.log(response.data);
         if (response.status == 200 && response.data.code == 200) {
             let dataList = response.data.data.friends;
             let friends = new Array();
@@ -114,14 +118,54 @@ onMounted(() => {
             })
         }
     });
-})
+});
 
-function chooseUser(username) {
-    console.log(username);
+const handleRowClick = (row, column, event) => {
+    let friendUsername = row.username;
+    chooseUserNamebar = friendUsername;
+    startHeartBeat(friendUsername);
 }
-function addFriend() {
 
-}
+const addFriend = () => {
+    ElMessageBox.prompt('请输入用户名', '添加好友', {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消'
+    }).then(({ value }) => {
+        let addFriendData = {
+            username: username,
+            friendUsername: value
+        }
+        console.log(addFriendData);
+        service.post("/api/auth/friends/add", addFriendData).then((response) => {
+            console.log(response.data);
+            if (response.status == 200 && response.data.code == 200) {
+                let user = {
+                    username: value
+                };
+                currentFriends = tableData.value;
+                currentFriends.push(user);
+                tableData.value = currentFriends;
+            } else {
+                ElMessage({
+                    message: "系统异常，请稍后重试。",
+                    type: 'error',
+                })
+            }
+        });
+    }).catch(() => {
+        ElMessage({
+            type: 'info',
+            message: '添加好友失败，请稍后再试',
+        })
+    })
+};
+
+let messages = [
+    { text: "你好！", align: "left" },
+    { text: "你好！", align: "right" },
+    { text: "如何才能帮助您？", align: "left" },
+    { text: "我需要帮助进行Vue.js开发", align: "right" }]
+
 function handleDelete(index, row) {
     let frendUsername = row.username;
     let userinfo = {
@@ -129,7 +173,6 @@ function handleDelete(index, row) {
         friendUsername: frendUsername
     }
     service.delete("/api/auth/friends/remove", { data: userinfo }).then((response) => {
-        console.log(response.data);
         if (response.status == 200 && response.data.code == 200) {
             let friends = tableData.value;
             friends.splice(index);
@@ -142,6 +185,39 @@ function handleDelete(index, row) {
         }
     });
 }
+const heartBeatTimer = ref(null);
+const heartBeatInterval = 3000;
+
+const startHeartBeat = (friendUsername) => {
+    sendHeartBeat(friendUsername)
+    heartBeatTimer.value = setInterval(sendHeartBeat(friendUsername), heartBeatInterval)
+}
+
+const stopHeartBeat = () => {
+    if (heartBeatTimer.value) {
+        clearInterval(heartBeatTimer.value)
+        heartBeatTimer.value = null
+    }
+}
+const sendHeartBeat = (friendUsername) => {
+    let url = '/api/auth/message/list?username=' + username + '&friendUsername=' + friendUsername;
+    service.get(url)
+        .then(response => {
+            console.log('心跳成功', response)
+        })
+        .catch(error => {
+            console.error('心跳失败', error)
+            stopHeartBeat()
+            startHeartBeat(friendUsername)
+        })
+}
+
+onUnmounted(() => {
+    stopHeartBeat()
+});
+
+
+
 </script>
 <style>
 /* 聊天界面布局 */
@@ -309,6 +385,9 @@ function handleDelete(index, row) {
     padding: 20px;
     overflow-y: auto;
     background-color: #f9f9f9;
+    display: flex;
+    flex-direction: column;
+
 }
 
 .message {
@@ -538,5 +617,15 @@ function handleDelete(index, row) {
 
 .ai-send-btn:hover {
     background-color: #2980b9;
+}
+
+.message-left {
+    background-color: #42b983;
+    align-self: flex-start;
+}
+
+.message-right {
+    background-color: orange;
+    align-self: flex-end;
 }
 </style>
