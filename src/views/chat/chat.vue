@@ -24,7 +24,7 @@
             <div class="chat-header">
                 <div class="chat-user-info">
                     <div class="chat-user-avatar">用户</div>
-                    <div class="chat-user-name" id="chatTitle">{{ chooseUserNamebar }}</div>
+                    <div class="chat-user-name" id="chatTitle">{{ chooseUsername }}</div>
                 </div>
                 <div class="chat-actions">
                     <button class="chat-action-button" id="addFriendBtn" @click="addFriend()"><i
@@ -33,9 +33,15 @@
                 </div>
             </div>
             <div class="chat-messages" id="chatMessages">
-                <div class="message" v-for="(message, index) in messages" :key="index"
-                    :class="message.align === 'left' ? 'message-left' : 'message-right'">
-                    {{ message.text }}
+                <div class="message" v-for="(message, index) in messages" :key="index">
+                    <div :class="message.align === 'left' ? 'friend-usermane' : 'sender-username'">{{ message.username
+                        }}
+                    </div>
+                    <div :class="message.align === 'left' ? 'message-left' : 'message-right'">{{ message.text }}</div>
+                    <div :class="message.align === 'left' ? 'message-left' : 'message-right'"> translate: {{
+                        message.translate
+                        }}
+                    </div>
                 </div>
             </div>
             <div class="chat-input-container">
@@ -96,7 +102,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import service from "../../request/http.js";
 let tableData = ref([]);
 const username = sessionStorage.getItem("username");
-let chooseUserNamebar = "选择一个好友开始聊天";
+const chooseUsername = ref("选择一个好友开始聊天");
 onMounted(() => {
     service.get("/api/auth/friends/list?username=" + username).then((response) => {
         if (response.status == 200 && response.data.code == 200) {
@@ -122,8 +128,9 @@ onMounted(() => {
 
 const handleRowClick = (row, column, event) => {
     let friendUsername = row.username;
-    chooseUserNamebar = friendUsername;
-    startHeartBeat(friendUsername);
+    chooseUsername.value = friendUsername;
+    sessionStorage.setItem("chatPartner", friendUsername);
+    startHeartBeat();
 }
 
 const addFriend = () => {
@@ -160,11 +167,7 @@ const addFriend = () => {
     })
 };
 
-let messages = [
-    { text: "你好！", align: "left" },
-    { text: "你好！", align: "right" },
-    { text: "如何才能帮助您？", align: "left" },
-    { text: "我需要帮助进行Vue.js开发", align: "right" }]
+let messages = ref([]);
 
 function handleDelete(index, row) {
     let frendUsername = row.username;
@@ -188,9 +191,9 @@ function handleDelete(index, row) {
 const heartBeatTimer = ref(null);
 const heartBeatInterval = 3000;
 
-const startHeartBeat = (friendUsername) => {
-    sendHeartBeat(friendUsername)
-    heartBeatTimer.value = setInterval(sendHeartBeat(friendUsername), heartBeatInterval)
+const startHeartBeat = () => {
+    sendHeartBeat();
+    heartBeatTimer.value = setInterval(sendHeartBeat, heartBeatInterval);
 }
 
 const stopHeartBeat = () => {
@@ -199,17 +202,38 @@ const stopHeartBeat = () => {
         heartBeatTimer.value = null
     }
 }
-const sendHeartBeat = (friendUsername) => {
+const sendHeartBeat = () => {
+    let friendUsername = sessionStorage.getItem("chatPartner");
     let url = '/api/auth/message/list?username=' + username + '&friendUsername=' + friendUsername;
-    service.get(url)
-        .then(response => {
-            console.log('心跳成功', response)
-        })
-        .catch(error => {
-            console.error('心跳失败', error)
-            stopHeartBeat()
-            startHeartBeat(friendUsername)
-        })
+    service.get(url).then(response => {
+        let messageList = response.data.data;
+        let currentMessages = new Array();
+        for (let singleMessage of messageList) {
+            console.log(singleMessage);
+            let align = "";
+            let senderUseranme = singleMessage.senderUsername;
+            let speakUsername = "";
+            if (username == senderUseranme) {
+                align = "right";
+            } else {
+                align = "left";
+                speakUsername = senderUseranme;
+            }
+            let message = {
+                text: singleMessage.content,
+                translate: singleMessage.translatedContent,
+                username: speakUsername,
+                align: align
+            };
+            currentMessages.push(message);
+        }
+        console.log(currentMessages);
+        messages.value = currentMessages;
+    }).catch(error => {
+        console.error('获取聊天记录失败，请稍后再试', error);
+        stopHeartBeat();
+        startHeartBeat();
+    })
 }
 
 onUnmounted(() => {
@@ -392,6 +416,7 @@ onUnmounted(() => {
 
 .message {
     display: flex;
+    flex-direction: column;
     margin-bottom: 20px;
 }
 
@@ -620,12 +645,30 @@ onUnmounted(() => {
 }
 
 .message-left {
-    background-color: #42b983;
+    background-color: gray;
     align-self: flex-start;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e0e0e0;
 }
 
 .message-right {
-    background-color: orange;
+    background-color: #42b983;
+    align-self: flex-end;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e0e0e0;
+}
+
+.friend-usermane {
+    align-self: flex-start;
+}
+
+.sender-username {
     align-self: flex-end;
 }
 </style>
