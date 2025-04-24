@@ -35,12 +35,12 @@
             <div class="chat-messages" id="chatMessages">
                 <div class="message" v-for="(message, index) in messages" :key="index">
                     <div :class="message.align === 'left' ? 'friend-usermane' : 'sender-username'">{{ message.username
-                        }}
+                    }}
                     </div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'">{{ message.text }}</div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'"> translate: {{
                         message.translate
-                        }}
+                    }}
                     </div>
                 </div>
             </div>
@@ -55,8 +55,9 @@
                     </div>
                 </div>
                 <div class="chat-input-wrapper">
-                    <textarea class="chat-input" id="messageInput" placeholder="输入消息..."></textarea>
-                    <button class="chat-send-btn" id="sendButton"><i class="fas fa-paper-plane"></i></button>
+                    <textarea v-model="sendMsg" class="chat-input" id="messageInput" placeholder="输入消息..."></textarea>
+                    <button class="chat-send-btn" id="sendButton" @click="sendMessage"><i
+                            class="fas fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
@@ -188,6 +189,29 @@ function handleDelete(index, row) {
         }
     });
 }
+
+let sendMsg = ref('');
+const sendMessage = () => {
+    let msg = sendMsg.value;
+    let msgObj = {
+        senderUsername: username,
+        receiverUsername: sessionStorage.getItem("chatPartner"),
+        content: msg
+    }
+    console.log(msgObj);
+    service.post("/api/auth/message/send", msgObj).then((response) => {
+        if (response.status == 200 && response.data.code == 200) {
+            sendHeartBeat();
+        } else {
+            ElMessage({
+                message: "发送失败，请稍后再试",
+                type: 'error',
+            })
+        }
+    });
+}
+
+
 const heartBeatTimer = ref(null);
 const heartBeatInterval = 3000;
 
@@ -227,7 +251,6 @@ const sendHeartBeat = () => {
             };
             currentMessages.push(message);
         }
-        console.log(currentMessages);
         messages.value = currentMessages;
     }).catch(error => {
         console.error('获取聊天记录失败，请稍后再试', error);
