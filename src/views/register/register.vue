@@ -10,6 +10,9 @@
             <el-form-item label="密码" class="password_label">
                 <el-input v-model="formData.password" placeholder="请输入您的密码" type="password"></el-input>
             </el-form-item>
+            <el-form-item label="确认密码" class="password_check_label">
+                <el-input v-model="formData.repassword" placeholder="请再次输入您的密码" type="password"></el-input>
+            </el-form-item>
             <div class="click_place">
                 <el-button type="primary" @click="submitClick">确认</el-button>
                 <el-button type="danger" @click="cancelClick">取消</el-button>
@@ -26,28 +29,40 @@ import { useRouter } from 'vue-router';
 const router = useRouter()
 const formData = reactive({
     username: '',
-    password: ''
+    password: '',
+    repassword: ''
 })
 
 const submitClick = () => {
     let username = formData.username;
     let password = formData.password;
-    service.post("/api/auth/login", {
+    let repassword = formData.repassword;
+    if (username == '' || password == '' || repassword == '') {
+        ElMessage({
+            message: "用户名密码不能为空",
+            type: 'error',
+        })
+    }
+
+    if (password != repassword) {
+        ElMessage({
+            message: "两次输入的密码不一致，请重新输入。",
+            type: 'error',
+        })
+    }
+    service.post("/api/auth/register", {
         username: username,
         password: password
     }).then((response) => {
         console.log(response.data);
         if (response.status == 200 && response.data.code == 200) {
-            let userInfo = response.data.data;
-            sessionStorage.setItem("isLogin", "success");
-            sessionStorage.setItem("username", userInfo.username);
             ElMessage({
-                message: "登录成功。",
+                message: "注册成功。",
                 type: 'success',
             })
         } else {
             ElMessage({
-                message: "登录失败，请稍后重试。",
+                message: "注册失败，请稍后重试。",
                 type: 'error',
             })
         }
@@ -55,12 +70,12 @@ const submitClick = () => {
     });
 }
 
-const emit = defineEmits(['doClose'])
+const emit = defineEmits(['doCloseRegister'])
 const cancelClick = () => {
     doCloseWindow() // 触发事件并传递值
 }
 function doCloseWindow() {
-    emit('doClose', 1)
+    emit('doCloseRegister', 1)
 }
 </script>
 <style>
@@ -71,7 +86,7 @@ function doCloseWindow() {
     right: 0;
     bottom: 0;
     margin: auto;
-    height: 16rem;
+    height: 18rem;
     width: 30rem;
     background-color: white;
     flex-direction: column;
@@ -86,7 +101,8 @@ function doCloseWindow() {
 }
 
 .username_label,
-.password_label {
+.password_label,
+.password_check_label {
     margin: 0 auto;
     padding-top: 1rem;
     width: 20rem;

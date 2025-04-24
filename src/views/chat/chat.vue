@@ -192,10 +192,18 @@ function handleDelete(index, row) {
 
 let sendMsg = ref('');
 const sendMessage = () => {
+    let chatPartner = sessionStorage.getItem("chatPartner");
+    if (chatPartner == null) {
+        ElMessage({
+            message: "请选择您的聊天对象。",
+            type: 'error',
+        })
+        return;
+    }
     let msg = sendMsg.value;
     let msgObj = {
         senderUsername: username,
-        receiverUsername: sessionStorage.getItem("chatPartner"),
+        receiverUsername: chatPartner,
         content: msg
     }
     console.log(msgObj);
@@ -252,6 +260,7 @@ const sendHeartBeat = () => {
             currentMessages.push(message);
         }
         messages.value = currentMessages;
+        sendMsg.value = "";
     }).catch(error => {
         console.error('获取聊天记录失败，请稍后再试', error);
         stopHeartBeat();

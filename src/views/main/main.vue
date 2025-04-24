@@ -22,15 +22,18 @@
         </footer>
     </div>
     <login v-show="isVisible" @doClose="onDoClose"></login>
+    <register v-show="isRegisterVisible" @doCloseRegister="onDoCloseRegister"></register>
 </template>
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from "vue-router";
 import login from "../login/login.vue";
+import register from '../register/register.vue';
 import { UserFilled } from '@element-plus/icons-vue';
 import { onMounted } from 'vue';
 const router = useRouter();
 const isVisible = ref(false);
+const isRegisterVisible = ref(false);
 const loginIsVisible = ref(true);
 const userIsVisible = ref(false);
 
@@ -40,6 +43,10 @@ function clickLogin() {
     isVisible.value = !isVisible.value;
 }
 
+function clickRegister() {
+    isRegisterVisible.value = !isRegisterVisible.value;
+}
+
 const onDoClose = (doClose) => {
     let isLogin = sessionStorage.getItem("isLogin");
     if (isLogin == "success") {
@@ -47,11 +54,18 @@ const onDoClose = (doClose) => {
         userIsVisible.value = true;
         let userName = sessionStorage.getItem("username");
         useName = userName;
+        router.push("/main/chat");
     }
     if (doClose == 1) {
         isVisible.value = false;
     }
-    router.push("/main/chat");
+}
+
+const onDoCloseRegister = (doCloseRegister) => {
+    console.log(doCloseRegister);
+    if (doCloseRegister == 1) {
+        isRegisterVisible.value = false;
+    }
 }
 
 function clickLogout() {
@@ -92,7 +106,7 @@ onMounted(() => {
     -ms-user-select: none;
     /*IE10*/
     user-select: none;
-    z-index: 1；
+    z-index: 1;
 }
 
 .main_head {
