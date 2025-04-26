@@ -35,12 +35,12 @@
             <div class="chat-messages" id="chatMessages">
                 <div class="message" v-for="(message, index) in messages" :key="index">
                     <div :class="message.align === 'left' ? 'friend-usermane' : 'sender-username'">{{ message.username
-                    }}
+                        }}
                     </div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'">{{ message.text }}</div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'"> translate: {{
                         message.translate
-                    }}
+                        }}
                     </div>
                 </div>
             </div>
@@ -55,7 +55,8 @@
                     </div>
                 </div>
                 <div class="chat-input-wrapper">
-                    <textarea v-model="sendMsg" class="chat-input" id="messageInput" placeholder="输入消息..."></textarea>
+                    <textarea v-model="sendMsg" @keyup.enter="sendMessage" class="chat-input" id="messageInput"
+                        placeholder="输入消息..."></textarea>
                     <button class="chat-send-btn" id="sendButton" @click="sendMessage"><i
                             class="fas fa-paper-plane"></i></button>
                 </div>
@@ -77,7 +78,8 @@
             </div>
             <div class="ai-input-container">
                 <div class="ai-input-wrapper">
-                    <input type="text" v-model="askAi" class="ai-input" id="aiQuestionInput" placeholder="输入问题...">
+                    <input type="text" @keyup.enter="askAiHandle" v-model="askAi" class="ai-input" id="aiQuestionInput"
+                        placeholder="输入问题...">
                     <button class="ai-send-btn" id="submitAIBtn" @click="askAiHandle"><i
                             class="fas fa-paper-plane"></i></button>
                 </div>
@@ -230,6 +232,11 @@ let aiMsgSpeakList = new Array();
 const askAiHandle = () => {
     aiMsgSpeakList = aiMessages.value;
     let msg = askAi.value;
+    if (msg == 'clean') {
+        aiMsgSpeakList.length = 0;
+        aiMessages.value = aiMsgSpeakList;
+        return;
+    }
     let aiMessageList = {
         text: msg,
         align: 'right'
