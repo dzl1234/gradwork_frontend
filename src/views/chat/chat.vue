@@ -3,7 +3,7 @@
         <!-- 侧边栏 - 好友列表 -->
         <div class="sidebar">
             <div class="user-search">
-                <el-input v-model="friend_name" placeholder="搜索好友..." type="text"></el-input>
+                <el-input v-model="friendNameSearch" @input="handleInput" placeholder="搜索好友..." type="text"></el-input>
             </div>
             <div class="friends-list" id="friendsList">
                 <el-table :data="tableData" style="width: 100%" @row-click="handleRowClick">
@@ -35,12 +35,12 @@
             <div class="chat-messages" id="chatMessages">
                 <div class="message" v-for="(message, index) in messages" :key="index">
                     <div :class="message.align === 'left' ? 'friend-usermane' : 'sender-username'">{{ message.username
-                        }}
+                    }}
                     </div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'">{{ message.text }}</div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'"> translate: {{
                         message.translate
-                        }}
+                    }}
                     </div>
                 </div>
             </div>
@@ -112,7 +112,12 @@ import service from "../../request/http.js";
 let tableData = ref([]);
 const username = sessionStorage.getItem("username");
 const chooseUsername = ref("选择一个好友开始聊天");
+let fullFriendList = new Array();
 onMounted(() => {
+    renewFriendBar();
+});
+
+function renewFriendBar() {
     service.get("/api/auth/friends/list?username=" + username).then((response) => {
         if (response.status == 200 && response.data.code == 200) {
             let dataList = response.data.data.friends;
@@ -124,7 +129,7 @@ onMounted(() => {
                 console.log(user);
                 friends.push(user);
             }
-            console.log(friends);
+            fullFriendList = friends;
             tableData.value = friends;
         } else {
             ElMessage({
@@ -133,7 +138,9 @@ onMounted(() => {
             })
         }
     });
-});
+}
+
+
 
 const handleRowClick = (row, column, event) => {
     let friendUsername = row.username;
@@ -155,12 +162,7 @@ const addFriend = () => {
         service.post("/api/auth/friends/add", addFriendData).then((response) => {
             console.log(response.data);
             if (response.status == 200 && response.data.code == 200) {
-                let user = {
-                    username: value
-                };
-                currentFriends = tableData.value;
-                currentFriends.push(user);
-                tableData.value = currentFriends;
+                renewFriendBar();
             } else {
                 ElMessage({
                     message: "系统异常，请稍后重试。",
@@ -176,6 +178,20 @@ const addFriend = () => {
     })
 };
 
+let friendNameSearch = ref('');
+const handleInput = () => {
+    console.log(fullFriendList);
+    let searchFriendList = new Array();
+    fullFriendList.forEach(element => {
+        let searchName = friendNameSearch.value;
+        if (element.username.includes(searchName)) {
+            searchFriendList.push(element);
+        }
+    });
+    console.log(searchFriendList);
+    tableData.value = searchFriendList;
+}
+
 let messages = ref([]);
 
 function handleDelete(index, row) {
@@ -186,9 +202,7 @@ function handleDelete(index, row) {
     }
     service.delete("/api/auth/friends/remove", { data: userinfo }).then((response) => {
         if (response.status == 200 && response.data.code == 200) {
-            let friends = tableData.value;
-            friends.splice(index);
-            tableData.value = friends;
+            renewFriendBar();
         } else {
             ElMessage({
                 message: "系统异常，请稍后重试。",

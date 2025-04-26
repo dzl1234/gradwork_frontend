@@ -40,11 +40,18 @@ const userIsVisible = ref(false);
 let useName = "";
 
 function clickLogin() {
+    closeAll();
     isVisible.value = !isVisible.value;
 }
 
 function clickRegister() {
+    closeAll();
     isRegisterVisible.value = !isRegisterVisible.value;
+}
+
+function closeAll() {
+    isVisible.value = false;
+    isRegisterVisible.value = false;
 }
 
 const onDoClose = (doClose) => {
