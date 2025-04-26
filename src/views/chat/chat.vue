@@ -68,12 +68,18 @@
                 智能问答
             </div>
             <div class="ai-assistant-chat" id="aiResponseContainer">
-                <!-- AI助手的聊天记录 -->
+                <div class="ai-messages" id="aiChatMessages">
+                    <div class="message" v-for="(aiMessage, index) in aiMessages" :key="index">
+                        <div :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">{{ aiMessage.text }}
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="ai-input-container">
                 <div class="ai-input-wrapper">
-                    <input type="text" class="ai-input" id="aiQuestionInput" placeholder="输入问题...">
-                    <button class="ai-send-btn" id="submitAIBtn"><i class="fas fa-paper-plane"></i></button>
+                    <input type="text" v-model="askAi" class="ai-input" id="aiQuestionInput" placeholder="输入问题...">
+                    <button class="ai-send-btn" id="submitAIBtn" @click="askAiHandle"><i
+                            class="fas fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
@@ -206,10 +212,45 @@ const sendMessage = () => {
         receiverUsername: chatPartner,
         content: msg
     }
-    console.log(msgObj);
     service.post("/api/auth/message/send", msgObj).then((response) => {
         if (response.status == 200 && response.data.code == 200) {
             sendHeartBeat();
+        } else {
+            ElMessage({
+                message: "发送失败，请稍后再试",
+                type: 'error',
+            })
+        }
+    });
+}
+
+let askAi = ref('');
+let aiMessages = ref([]);
+let aiMsgSpeakList = new Array();
+const askAiHandle = () => {
+    aiMsgSpeakList = aiMessages.value;
+    let msg = askAi.value;
+    let aiMessageList = {
+        text: msg,
+        align: 'right'
+    }
+    aiMsgSpeakList.push(aiMessageList)
+    aiMessages.value = aiMsgSpeakList;
+    askAi.value = '';
+    let msgObj = {
+        question: msg,
+    }
+    service.post("/api/auth/ai/ask", msgObj).then((response) => {
+        if (response.status == 200 && response.data.code == 200) {
+            console.log(response);
+            let aiAnsower = response.data.data;
+            aiAnsower = aiAnsower.replace('/\n+/g', "<br>");
+            let aiAnsowerist = {
+                text: aiAnsower,
+                align: 'left'
+            }
+            aiMsgSpeakList.push(aiAnsowerist);
+            aiMessages.value = aiMsgSpeakList;
         } else {
             ElMessage({
                 message: "发送失败，请稍后再试",
@@ -271,9 +312,6 @@ const sendHeartBeat = () => {
 onUnmounted(() => {
     stopHeartBeat()
 });
-
-
-
 </script>
 <style>
 /* 聊天界面布局 */
