@@ -71,7 +71,9 @@
             <div class="ai-assistant-chat" id="aiResponseContainer">
                 <div class="ai-messages" id="aiChatMessages">
                     <div class="message" v-for="(aiMessage, index) in aiMessages" :key="index">
-                        <div :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">{{ aiMessage.text }}
+                        <div :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">{{ aiMessage.text }}</div>
+                        <div class="message-time" :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">
+                            {{ formatTimestamp(aiMessage.timestamp) }}
                         </div>
                     </div>
                 </div>
@@ -106,16 +108,115 @@
     </div>
 </template>
 <script setup>
-import { onMounted, ref, onUnmounted } from 'vue';
+import { onMounted, ref, onUnmounted, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import service from "../../request/http.js";
 let tableData = ref([]);
 const username = sessionStorage.getItem("username");
 const chooseUsername = ref("选择一个好友开始聊天");
 let fullFriendList = new Array();
+let aiMessages = ref([]); // AI 消息列表
+let aiMsgSpeakList = new Array(); // 临时存储 AI 消息
+
+// 获取 AI 问答历史记录
+const fetchAiHistory = () => {
+    if (!username) {
+        console.warn("Username 为空，无法获取 AI 历史记录");
+        return;
+    }
+    service.get(`/api/auth/ai/history?username=${username}`).then((response) => {
+        if (response.status === 200 && response.data.code === 200) {
+            const history = response.data.data;
+            aiMsgSpeakList = [];
+            history.forEach(item => {
+                aiMsgSpeakList.push({
+                    text: item.question,
+                    align: 'right',
+                    timestamp: item.timestamp
+                });
+                aiMsgSpeakList.push({
+                    text: item.answer.replace(/\n+/g, "<br>"),
+                    align: 'left',
+                    timestamp: item.timestamp
+                });
+            });
+            aiMessages.value = aiMsgSpeakList;
+            // 移除 setTimeout(scrollToBottom, 0)，因为 watch 已处理滚动
+        } else {
+            console.error("获取 AI 历史记录失败：", response.data);
+            setTimeout(() => {
+                if (aiMessages.value.length === 0) {
+                    ElMessage({
+                        message: `获取 AI 历史记录失败：${response.data.desc || '未知错误'}，请稍后重试。`,
+                        type: 'error',
+                    });
+                }
+            }, 2000);
+        }
+    }).catch((error) => {
+        console.error('获取 AI 历史记录失败', error);
+        setTimeout(() => {
+            if (aiMessages.value.length === 0) {
+                ElMessage({
+                    message: `获取 AI 历史记录失败：${error.message || '网络错误'}，请稍后重试。`,
+                    type: 'error',
+                });
+            }
+        }, 2000);
+    });
+};
+
+// 滚动到底部
+const scrollToBottom = () => {
+    const aiChatMessages = document.getElementById('aiChatMessages');
+    if (aiChatMessages) {
+        aiChatMessages.scrollTo({
+            top: aiChatMessages.scrollHeight,
+            behavior: 'smooth' // 平滑滚动
+        });
+    } else {
+        console.warn("未找到 aiChatMessages 元素");
+    }
+};
+
+// 格式化时间戳
+const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+};
+
+// 监听 aiMessages 变化，自动滚动到底部
+watch(aiMessages, () => {
+    nextTick(() => {
+        scrollToBottom(); // 在 DOM 更新后再滚动
+    });
+});
+
 onMounted(() => {
     renewFriendBar();
+    if (username) {
+        fetchAiHistory();
+    } else {
+        const checkUsername = setInterval(() => {
+            const usernameRetry = sessionStorage.getItem("username");
+            if (usernameRetry) {
+                clearInterval(checkUsername);
+                fetchAiHistory();
+            }
+        }, 500);
+    }
 });
+
+
+
 
 function renewFriendBar() {
     service.get("/api/auth/friends/list?username=" + username).then((response) => {
@@ -240,46 +341,55 @@ const sendMessage = () => {
     });
 }
 
+// 修改 askAiHandle 函数，确保与历史记录同步
 let askAi = ref('');
-let aiMessages = ref([]);
-let aiMsgSpeakList = new Array();
 const askAiHandle = () => {
-    aiMsgSpeakList = aiMessages.value;
-    let msg = askAi.value;
-    if (msg == 'clean') {
-        aiMsgSpeakList.length = 0;
+    if (askAi.value === 'clean') {
+        aiMsgSpeakList = [];
         aiMessages.value = aiMsgSpeakList;
         return;
     }
-    let aiMessageList = {
+    const msg = askAi.value;
+    if (!msg) return; // 防止空消息
+
+    // 添加用户的问题到前端显示
+    const userMessage = {
         text: msg,
-        align: 'right'
-    }
-    aiMsgSpeakList.push(aiMessageList)
-    aiMessages.value = aiMsgSpeakList;
-    askAi.value = '';
-    let msgObj = {
+        align: 'right',
+        timestamp: new Date().toISOString()
+    };
+    aiMsgSpeakList.push(userMessage);
+    aiMessages.value = [...aiMsgSpeakList];
+    askAi.value = ''; // 清空输入框
+
+    // 发送请求到后端
+    const msgObj = {
         question: msg,
-    }
-    service.post("/api/auth/ai/ask", msgObj).then((response) => {
-        if (response.status == 200 && response.data.code == 200) {
-            console.log(response);
-            let aiAnsower = response.data.data;
-            aiAnsower = aiAnsower.replace('/\n+/g', "<br>");
-            let aiAnsowerist = {
-                text: aiAnsower,
-                align: 'left'
-            }
-            aiMsgSpeakList.push(aiAnsowerist);
-            aiMessages.value = aiMsgSpeakList;
+    };
+    service.post(`/api/auth/ai/ask?username=${username}`, msgObj).then((response) => {
+        if (response.status === 200 && response.data.code === 200) {
+            const aiAnswer = response.data.data.replace(/\n+/g, "<br>");
+            const aiResponse = {
+                text: aiAnswer,
+                align: 'left',
+                timestamp: new Date().toISOString()
+            };
+            aiMsgSpeakList.push(aiResponse);
+            aiMessages.value = [...aiMsgSpeakList];
         } else {
             ElMessage({
-                message: "发送失败，请稍后再试",
+                message: "AI 响应失败，请稍后再试。",
                 type: 'error',
-            })
+            });
         }
+    }).catch((error) => {
+        console.error('AI 请求失败', error);
+        ElMessage({
+            message: "AI 请求失败，请稍后再试。",
+            type: 'error',
+        });
     });
-}
+};
 
 
 const heartBeatTimer = ref(null);
@@ -564,7 +674,7 @@ onUnmounted(() => {
 
 .message-time {
     font-size: 12px;
-    color: #7f8c8d;
+    color: #000000;
     margin-top: 5px;
 }
 
@@ -675,6 +785,11 @@ onUnmounted(() => {
     overflow-y: auto;
 }
 
+.ai-messages {
+    max-height: 400px; /* 限制高度，具体值可根据需求调整 */
+    overflow-y: auto;  /* 启用垂直滚动 */
+}
+
 .ai-message {
     margin-bottom: 15px;
 }
@@ -691,6 +806,12 @@ onUnmounted(() => {
     padding: 10px;
     border-radius: 15px 15px 0 15px;
     border: 1px solid #eaeaea;
+}
+
+.message-time {
+    font-size: 12px;
+    color: #000000; /* 改为黑色 */
+    margin-top: 5px;
 }
 
 .ai-input-container {

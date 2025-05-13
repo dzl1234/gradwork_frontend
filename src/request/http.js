@@ -43,9 +43,10 @@ const showStatus = (status) => {
 }
 
 const service = axios.create({
-    // 联调
+    // 
     //baseURL: 'http://1.116.228.251:8080',
-    baseURL: 'http://192.168.3.33:8080',
+    // baseURL: 'http://192.168.1.7:8080',
+    baseURL: 'http://10.5.188.18:8080',
     headers: {
         get: {
             'Content-Type': 'application/json;charset=utf-8',
