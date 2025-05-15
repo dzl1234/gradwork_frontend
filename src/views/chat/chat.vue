@@ -5,12 +5,25 @@
             <div class="user-search">
                 <el-input v-model="friendNameSearch" @input="handleInput" placeholder="搜索好友..." type="text"></el-input>
             </div>
+            <div class="group-list" id="groupList">
+                <el-table :data="grouptableData" style="width: 100%" @row-click="handleGroupRowClick" empty-text="空">
+                    <el-table-column prop="groupname" id="groupid" label="群列表" />
+                    <el-table-column align="right">
+                        <template #default="scope">
+                            <el-button size="small" type="danger"
+                                @click.stop="handleDeleteGroup(scope.$index, scope.row)">
+                                删除
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
             <div class="friends-list" id="friendsList">
                 <el-table :data="tableData" style="width: 100%" @row-click="handleRowClick">
                     <el-table-column prop="username" label="好友列表" />
                     <el-table-column align="right">
                         <template #default="scope">
-                            <el-button size="small" type="danger" @click="handleDelete(scope.$index, scope.row)">
+                            <el-button size="small" type="danger" @click.stop="handleDelete(scope.$index, scope.row)">
                                 删除
                             </el-button>
                         </template>
@@ -35,12 +48,12 @@
             <div class="chat-messages" id="chatMessages">
                 <div class="message" v-for="(message, index) in messages" :key="index">
                     <div :class="message.align === 'left' ? 'friend-usermane' : 'sender-username'">{{ message.username
-                    }}
+                        }}
                     </div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'">{{ message.text }}</div>
                     <div :class="message.align === 'left' ? 'message-left' : 'message-right'"> translate: {{
                         message.translate
-                    }}
+                        }}
                     </div>
                 </div>
             </div>
@@ -71,8 +84,10 @@
             <div class="ai-assistant-chat" id="aiResponseContainer">
                 <div class="ai-messages" id="aiChatMessages">
                     <div class="message" v-for="(aiMessage, index) in aiMessages" :key="index">
-                        <div :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">{{ aiMessage.text }}</div>
-                        <div class="message-time" :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">
+                        <div :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">{{ aiMessage.text }}
+                        </div>
+                        <div class="message-time"
+                            :class="aiMessage.align === 'left' ? 'message-left' : 'message-right'">
                             {{ formatTimestamp(aiMessage.timestamp) }}
                         </div>
                     </div>
@@ -112,6 +127,7 @@ import { onMounted, ref, onUnmounted, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import service from "../../request/http.js";
 let tableData = ref([]);
+let grouptableData = ref([]);
 const username = sessionStorage.getItem("username");
 const chooseUsername = ref("选择一个好友开始聊天");
 let fullFriendList = new Array();
@@ -239,14 +255,49 @@ function renewFriendBar() {
             })
         }
     });
+    service.get("/api/auth/group/list?username=" + username).then((response) => {
+        if (response.status == 200 && response.data.code == 200) {
+            let groupdataList = response.data.data;
+            console.log(groupdataList);
+            let groups = new Array();
+            for (let group of groupdataList) {
+                let groupData = {
+                    groupid: group.groupId,
+                    groupname: group.groupName
+                };
+                console.log(groupData);
+                groups.push(groupData);
+            }
+            fullFriendList = groups;
+            grouptableData.value = groups;
+        } else {
+            ElMessage({
+                message: "系统异常，请稍后重试。",
+                type: 'error',
+            })
+        }
+    })
 }
 
 
 
 const handleRowClick = (row, column, event) => {
     let friendUsername = row.username;
+    console.log(friendUsername);
     chooseUsername.value = friendUsername;
+    sessionStorage.setItem("chatType", "friend");
     sessionStorage.setItem("chatPartner", friendUsername);
+    startHeartBeat();
+}
+
+const handleGroupRowClick = (row, column, event) => {
+    let groupId = row.groupid;
+    let groupName = row.groupname;
+    console.log(groupName);
+    chooseUsername.value = groupName;
+    sessionStorage.setItem("chatType", "group");
+    sessionStorage.setItem("chatGroupId", groupId);
+    sessionStorage.setItem("chatGroup", groupName);
     startHeartBeat();
 }
 
@@ -304,6 +355,34 @@ function handleDelete(index, row) {
     service.delete("/api/auth/friends/remove", { data: userinfo }).then((response) => {
         if (response.status == 200 && response.data.code == 200) {
             renewFriendBar();
+            let chatPartner = sessionStorage.getItem("chatPartner");
+            if (chatPartner == frendUsername) {
+                console.log("in clean");
+                cleanChat;
+            }
+        } else {
+            ElMessage({
+                message: "系统异常，请稍后重试。",
+                type: 'error',
+            })
+        }
+    });
+}
+
+function handleDeleteGroup(index, row) {
+    let groupId = row.groupid;
+    let groupinfo = {
+        username: username,
+        groupId: groupId
+    }
+    console.log(groupinfo);
+    service.post("/api/auth/group/leave", groupinfo).then((response) => {
+        if (response.status == 200 && response.data.code == 200) {
+            renewFriendBar();
+            let currentGroupId = sessionStorage.getItem("chatGroupId");
+            if (groupId == currentGroupId) {
+                cleanChat;
+            }
         } else {
             ElMessage({
                 message: "系统异常，请稍后重试。",
@@ -391,6 +470,10 @@ const askAiHandle = () => {
     });
 };
 
+function cleanChat() {
+    stopHeartBeat();
+    messages.value = null;
+}
 
 const heartBeatTimer = ref(null);
 const heartBeatInterval = 3000;
@@ -407,37 +490,74 @@ const stopHeartBeat = () => {
     }
 }
 const sendHeartBeat = () => {
-    let friendUsername = sessionStorage.getItem("chatPartner");
-    let url = '/api/auth/message/list?username=' + username + '&friendUsername=' + friendUsername;
-    service.get(url).then(response => {
-        let messageList = response.data.data;
-        let currentMessages = new Array();
-        for (let singleMessage of messageList) {
-            console.log(singleMessage);
-            let align = "";
-            let senderUseranme = singleMessage.senderUsername;
-            let speakUsername = "";
-            if (username == senderUseranme) {
-                align = "right";
-            } else {
-                align = "left";
-                speakUsername = senderUseranme;
+    let chatType = sessionStorage.getItem("chatType");
+    console.log(chatType);
+    if (chatType == "friend") {
+        let friendUsername = sessionStorage.getItem("chatPartner");
+        let url = '/api/auth/message/list?username=' + username + '&friendUsername=' + friendUsername;
+        service.get(url).then(response => {
+            let messageList = response.data.data;
+            let currentMessages = new Array();
+            for (let singleMessage of messageList) {
+                console.log(singleMessage);
+                let align = "";
+                let senderUseranme = singleMessage.senderUsername;
+                let speakUsername = "";
+                if (username == senderUseranme) {
+                    align = "right";
+                } else {
+                    align = "left";
+                    speakUsername = senderUseranme;
+                }
+                let message = {
+                    text: singleMessage.content,
+                    translate: singleMessage.translatedContent,
+                    username: speakUsername,
+                    align: align
+                };
+                currentMessages.push(message);
             }
-            let message = {
-                text: singleMessage.content,
-                translate: singleMessage.translatedContent,
-                username: speakUsername,
-                align: align
-            };
-            currentMessages.push(message);
-        }
-        messages.value = currentMessages;
-        sendMsg.value = "";
-    }).catch(error => {
-        console.error('获取聊天记录失败，请稍后再试', error);
-        stopHeartBeat();
-        startHeartBeat();
-    })
+            messages.value = currentMessages;
+            sendMsg.value = "";
+        }).catch(error => {
+            console.error('获取聊天记录失败，请稍后再试', error);
+            stopHeartBeat();
+            startHeartBeat();
+        })
+    } else {
+        let groupId = sessionStorage.getItem("chatGroupId");
+        let url = '/api/auth/group/message/list?username=' + username + '&groupId=' + groupId;
+        service.get(url).then(response => {
+            let messageList = response.data.data;
+            console.log(messageList);
+            let currentMessages = new Array();
+            for (let singleMessage of messageList) {
+                console.log(singleMessage);
+                let align = "";
+                let senderUseranme = singleMessage.senderUsername;
+                let speakUsername = "";
+                if (username == senderUseranme) {
+                    align = "right";
+                } else {
+                    align = "left";
+                    speakUsername = senderUseranme;
+                }
+                let message = {
+                    text: singleMessage.content,
+                    translate: singleMessage.translatedContent,
+                    username: speakUsername,
+                    align: align
+                };
+                currentMessages.push(message);
+            }
+            messages.value = currentMessages;
+            sendMsg.value = "";
+        }).catch(error => {
+            console.error('获取聊天记录失败，请稍后再试', error);
+            stopHeartBeat();
+            startHeartBeat();
+        })
+    }
 }
 
 onUnmounted(() => {
@@ -786,8 +906,9 @@ onUnmounted(() => {
 }
 
 .ai-messages {
-    max-height: 400px; /* 限制高度，具体值可根据需求调整 */
-    overflow-y: auto;  /* 启用垂直滚动 */
+    height: 100%;
+    overflow-y: auto;
+    /* 启用垂直滚动 */
 }
 
 .ai-message {
@@ -810,7 +931,8 @@ onUnmounted(() => {
 
 .message-time {
     font-size: 12px;
-    color: #000000; /* 改为黑色 */
+    color: #000000;
+    /* 改为黑色 */
     margin-top: 5px;
 }
 
