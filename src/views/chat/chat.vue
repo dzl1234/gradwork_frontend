@@ -40,9 +40,8 @@
                     <div class="chat-user-name" id="chatTitle">{{ chooseUsername }}</div>
                 </div>
                 <div class="chat-actions">
-                    <button class="chat-action-button" id="addFriendBtn" @click="addFriend()"><i
+                    <button class="chat-action-button" id="addFriendBtn" @click="addFriendClick()"><i
                             class="fas fa-user-plus"></i></button>
-                    <button class="chat-action-button" id="toggleAIBtn"><i class="fas fa-robot"></i></button>
                 </div>
             </div>
             <div class="chat-messages" id="chatMessages">
@@ -121,13 +120,16 @@
             </div>
         </div>
     </div>
+    <addFriend v-show="isVisible" @doAddFriendClose="onDoAddFriendClose"></addFriend>
 </template>
 <script setup>
+import addFriend from "../add_friend/addFriend.vue";
 import { onMounted, ref, onUnmounted, watch, nextTick } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import service from "../../request/http.js";
 let tableData = ref([]);
 let grouptableData = ref([]);
+const isVisible = ref(false);
 const username = sessionStorage.getItem("username");
 const chooseUsername = ref("选择一个好友开始聊天");
 let fullFriendList = new Array();
@@ -231,9 +233,6 @@ onMounted(() => {
     }
 });
 
-
-
-
 function renewFriendBar() {
     service.get("/api/auth/friends/list?username=" + username).then((response) => {
         if (response.status == 200 && response.data.code == 200) {
@@ -265,7 +264,6 @@ function renewFriendBar() {
                     groupid: group.groupId,
                     groupname: group.groupName
                 };
-                console.log(groupData);
                 groups.push(groupData);
             }
             fullFriendList = groups;
@@ -279,7 +277,12 @@ function renewFriendBar() {
     })
 }
 
-
+const onDoAddFriendClose = () => {
+    isVisible.value = false;
+    console.log("调用刷新1")
+    renewFriendBar();
+    console.log("调用刷新2")
+}
 
 const handleRowClick = (row, column, event) => {
     let friendUsername = row.username;
@@ -301,33 +304,8 @@ const handleGroupRowClick = (row, column, event) => {
     startHeartBeat();
 }
 
-const addFriend = () => {
-    ElMessageBox.prompt('请输入用户名', '添加好友', {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消'
-    }).then(({ value }) => {
-        let addFriendData = {
-            username: username,
-            friendUsername: value
-        }
-        console.log(addFriendData);
-        service.post("/api/auth/friends/add", addFriendData).then((response) => {
-            console.log(response.data);
-            if (response.status == 200 && response.data.code == 200) {
-                renewFriendBar();
-            } else {
-                ElMessage({
-                    message: "系统异常，请稍后重试。",
-                    type: 'error',
-                })
-            }
-        });
-    }).catch(() => {
-        ElMessage({
-            type: 'info',
-            message: '添加好友失败，请稍后再试',
-        })
-    })
+const addFriendClick = () => {
+    isVisible.value = !isVisible.value;
 };
 
 let friendNameSearch = ref('');
@@ -394,30 +372,53 @@ function handleDeleteGroup(index, row) {
 
 let sendMsg = ref('');
 const sendMessage = () => {
-    let chatPartner = sessionStorage.getItem("chatPartner");
-    if (chatPartner == null) {
-        ElMessage({
-            message: "请选择您的聊天对象。",
-            type: 'error',
-        })
-        return;
-    }
-    let msg = sendMsg.value;
-    let msgObj = {
-        senderUsername: username,
-        receiverUsername: chatPartner,
-        content: msg
-    }
-    service.post("/api/auth/message/send", msgObj).then((response) => {
-        if (response.status == 200 && response.data.code == 200) {
-            sendHeartBeat();
-        } else {
+    let chatType = sessionStorage.getItem("chatType");
+    if (chatType == 'friend') {
+        let chatPartner = sessionStorage.getItem("chatPartner");
+        if (chatPartner == null) {
             ElMessage({
-                message: "发送失败，请稍后再试",
+                message: "请选择您的聊天对象。",
                 type: 'error',
             })
+            return;
         }
-    });
+        let msg = sendMsg.value;
+        let msgObj = {
+            senderUsername: username,
+            receiverUsername: chatPartner,
+            content: msg
+        }
+        service.post("/api/auth/message/send", msgObj).then((response) => {
+            if (response.status == 200 && response.data.code == 200) {
+                sendHeartBeat();
+            } else {
+                ElMessage({
+                    message: "发送失败，请稍后再试",
+                    type: 'error',
+                })
+            }
+        });
+    } else {
+        let groupName = sessionStorage.getItem("chatGroup");
+        let msg = sendMsg.value;
+        let msgObj = {
+            senderUsername: username,
+            groupName: groupName,
+            content: msg
+        }
+
+        service.post("/api/auth/group/message/send", msgObj).then((response) => {
+            if (response.status == 200 && response.data.code == 200) {
+                sendHeartBeat();
+            } else {
+                ElMessage({
+                    message: "发送失败，请稍后再试",
+                    type: 'error',
+                })
+            }
+        });
+
+    }
 }
 
 // 修改 askAiHandle 函数，确保与历史记录同步
@@ -479,6 +480,7 @@ const heartBeatTimer = ref(null);
 const heartBeatInterval = 3000;
 
 const startHeartBeat = () => {
+    stopHeartBeat();
     sendHeartBeat();
     heartBeatTimer.value = setInterval(sendHeartBeat, heartBeatInterval);
 }
@@ -526,7 +528,8 @@ const sendHeartBeat = () => {
         })
     } else {
         let groupId = sessionStorage.getItem("chatGroupId");
-        let url = '/api/auth/group/message/list?username=' + username + '&groupId=' + groupId;
+        let groupName = sessionStorage.getItem("chatGroup");
+        let url = '/api/auth/group/message/list?username=' + username + '&groupName=' + groupName;
         service.get(url).then(response => {
             let messageList = response.data.data;
             console.log(messageList);
